@@ -53,6 +53,7 @@ AFLAGS_sram34xx.o			:=-Wa,-march=armv7-a
 # Restart code (OMAP4/5 currently in omap4-common.c)
 obj-$(CONFIG_SOC_OMAP2420)		+= omap2-restart.o
 obj-$(CONFIG_SOC_OMAP2430)		+= omap2-restart.o
+obj-$(CONFIG_SOC_AM33XX)		+= am33xx-restart.o
 obj-$(CONFIG_ARCH_OMAP3)		+= omap3-restart.o
 
 # Pin multiplexing
@@ -294,5 +295,8 @@ endif
 
 emac-$(CONFIG_TI_DAVINCI_EMAC)		:= am35xx-emac.o
 obj-y					+= $(emac-m) $(emac-y)
+
+cpsw-$(CONFIG_TI_CPSW)			:= am33xx-cpsw.o
+obj-y					+= $(cpsw-m) $(cpsw-y)
 
 obj-y					+= common-board-devices.o twl-common.o dss-common.o

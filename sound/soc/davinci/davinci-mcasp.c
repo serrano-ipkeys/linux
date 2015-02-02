@@ -25,6 +25,7 @@
 #include <linux/of.h>
 #include <linux/of_platform.h>
 #include <linux/of_device.h>
+#include <linux/pinctrl/consumer.h>
 
 #include <sound/core.h>
 #include <sound/pcm.h>
@@ -346,6 +347,23 @@ static inline void mcasp_set_ctl_reg(void __iomem *regs, u32 val)
 
 static void mcasp_start_rx(struct davinci_audio_dev *dev)
 {
+	u32 pdir = mcasp_get_reg(dev->base + DAVINCI_MCASP_PDIR_REG);
+	u32 thclk_reg = mcasp_get_reg(dev->base + DAVINCI_MCASP_AHCLKXCTL_REG);
+	u32 tclk_reg = mcasp_get_reg(dev->base + DAVINCI_MCASP_ACLKXCTL_REG);
+
+	/*
+	*  If Transmit CLK or High Frequency Transmit CLK are set to output
+	*  and they use the internally generated clock. Do not reset the
+	*  transmit clock divider when receiving data in case they supply
+	*  the clock source for another device.
+	*/
+	if((pdir & ACLKX) && (tclk_reg & ACLKXE)) {
+		mcasp_set_ctl_reg(dev->base + DAVINCI_MCASP_GBLCTLX_REG, TXCLKRST);
+	}
+
+	if((pdir & AHCLKX) && (thclk_reg & AHCLKXE)) {
+		mcasp_set_ctl_reg(dev->base + DAVINCI_MCASP_GBLCTLX_REG, TXHCLKRST);
+	}
 	mcasp_set_ctl_reg(dev->base + DAVINCI_MCASP_GBLCTLR_REG, RXHCLKRST);
 	mcasp_set_ctl_reg(dev->base + DAVINCI_MCASP_GBLCTLR_REG, RXCLKRST);
 	mcasp_set_ctl_reg(dev->base + DAVINCI_MCASP_GBLCTLR_REG, RXSERCLR);
@@ -363,6 +381,23 @@ static void mcasp_start_tx(struct davinci_audio_dev *dev)
 {
 	u8 offset = 0, i;
 	u32 cnt;
+	u32 pdir = mcasp_get_reg(dev->base + DAVINCI_MCASP_PDIR_REG);
+	u32 rhclk_reg = mcasp_get_reg(dev->base + DAVINCI_MCASP_AHCLKRCTL_REG);
+	u32 rclk_reg = mcasp_get_reg(dev->base + DAVINCI_MCASP_ACLKRCTL_REG);
+
+	/*
+	*  If Receive CLK or High Frequency Receive CLK are set to output
+	*  and they use the internally generated clock. Do not reset the
+	*  receive clock divider when transmitting data in case they supply
+	*  the clock source for another device.
+	*/
+	if((pdir & ACLKR) && (rclk_reg & ACLKRE)) {
+		mcasp_set_ctl_reg(dev->base + DAVINCI_MCASP_GBLCTLR_REG, RXCLKRST);
+	}
+
+	if((pdir & AHCLKR) && (rhclk_reg & AHCLKRE)) {
+		mcasp_set_ctl_reg(dev->base + DAVINCI_MCASP_GBLCTLR_REG, RXHCLKRST);
+	}
 
 	mcasp_set_ctl_reg(dev->base + DAVINCI_MCASP_GBLCTLX_REG, TXHCLKRST);
 	mcasp_set_ctl_reg(dev->base + DAVINCI_MCASP_GBLCTLX_REG, TXCLKRST);
@@ -482,6 +517,10 @@ static int davinci_mcasp_set_dai_fmt(struct snd_soc_dai *cpu_dai,
 	case SND_SOC_DAIFMT_AC97:
 		mcasp_clr_bits(dev->base + DAVINCI_MCASP_TXFMCTL_REG, FSXDUR);
 		mcasp_clr_bits(dev->base + DAVINCI_MCASP_RXFMCTL_REG, FSRDUR);
+		break;
+	case SND_SOC_DAIFMT_I2S:
+		mcasp_set_bits(dev->base + DAVINCI_MCASP_TXFMCTL_REG, FSXDUR);
+		mcasp_set_bits(dev->base + DAVINCI_MCASP_RXFMCTL_REG, FSRDUR);
 		break;
 	default:
 		/* configure a full-word SYNC pulse (LRCLK) */
@@ -1047,6 +1086,22 @@ static struct snd_platform_data *davinci_mcasp_set_pdata_from_of(
 		pdata->serial_dir = of_serial_dir;
 	}
 
+	ret = of_property_read_u32(np, "asp-chan-q", &pdata->asp_chan_q);
+	if (ret < 0)
+		goto nodata;
+
+	ret = of_property_read_u32(np, "ram-chan-q", &val);
+	if (ret >= 0)
+		pdata->ram_chan_q = val;
+
+	ret = of_property_read_u32(np, "tx-dma-offset",	&pdata->tx_dma_offset);
+	if (ret < 0)
+		goto nodata;
+
+	ret = of_property_read_u32(np, "rx-dma-offset",	&pdata->rx_dma_offset);
+	if (ret < 0)
+		goto nodata;
+
 	ret = of_property_read_u32(np, "tx-num-evt", &val);
 	if (ret >= 0)
 		pdata->txnumevt = val;
@@ -1080,6 +1135,7 @@ static int davinci_mcasp_probe(struct platform_device *pdev)
 	struct resource *mem, *ioarea, *res;
 	struct snd_platform_data *pdata;
 	struct davinci_audio_dev *dev;
+	struct pinctrl *pinctrl;
 	int ret;
 
 	if (!pdev->dev.platform_data && !pdev->dev.of_node) {
@@ -1111,6 +1167,11 @@ static int davinci_mcasp_probe(struct platform_device *pdev)
 		return -EBUSY;
 	}
 
+	pinctrl = devm_pinctrl_get_select_default(&pdev->dev);
+	if (IS_ERR(pinctrl))
+		dev_warn(&pdev->dev,
+				"pins are not configured from the driver\n");
+
 	pm_runtime_enable(&pdev->dev);
 
 	ret = pm_runtime_get_sync(&pdev->dev);
@@ -1140,13 +1201,16 @@ static int davinci_mcasp_probe(struct platform_device *pdev)
 	dma_data->ram_chan_q = pdata->ram_chan_q;
 	dma_data->sram_pool = pdata->sram_pool;
 	dma_data->sram_size = pdata->sram_size_playback;
-	dma_data->dma_addr = (dma_addr_t) (pdata->tx_dma_offset +
+	if (dev->version == MCASP_VERSION_3)
+		dma_data->dma_addr = (dma_addr_t) (pdata->tx_dma_offset);
+	else
+		dma_data->dma_addr = (dma_addr_t) (pdata->tx_dma_offset +
 							mem->start);
 
 	/* first TX, then RX */
-	res = platform_get_resource(pdev, IORESOURCE_DMA, 0);
+	res = platform_get_resource_byname(pdev, IORESOURCE_DMA, "tx");
 	if (!res) {
-		dev_err(&pdev->dev, "no DMA resource\n");
+		dev_err(&pdev->dev, "Failed to get tx dma resource\n");
 		ret = -ENODEV;
 		goto err_release_clk;
 	}
@@ -1158,12 +1222,15 @@ static int davinci_mcasp_probe(struct platform_device *pdev)
 	dma_data->ram_chan_q = pdata->ram_chan_q;
 	dma_data->sram_pool = pdata->sram_pool;
 	dma_data->sram_size = pdata->sram_size_capture;
-	dma_data->dma_addr = (dma_addr_t)(pdata->rx_dma_offset +
+	if (dev->version == MCASP_VERSION_3)
+		dma_data->dma_addr = (dma_addr_t) (pdata->rx_dma_offset);
+	else
+		dma_data->dma_addr = (dma_addr_t)(pdata->rx_dma_offset +
 							mem->start);
 
-	res = platform_get_resource(pdev, IORESOURCE_DMA, 1);
+	res = platform_get_resource_byname(pdev, IORESOURCE_DMA, "rx");
 	if (!res) {
-		dev_err(&pdev->dev, "no DMA resource\n");
+		dev_err(&pdev->dev, "Failed to get rx dma resource\n");
 		ret = -ENODEV;
 		goto err_release_clk;
 	}

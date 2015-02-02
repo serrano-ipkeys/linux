@@ -2294,6 +2294,7 @@ int regulator_set_voltage(struct regulator *regulator, int min_uV, int max_uV)
 {
 	struct regulator_dev *rdev = regulator->rdev;
 	int ret = 0;
+	int old_min_uV, old_max_uV;
 
 	mutex_lock(&rdev->mutex);
 
@@ -2315,16 +2316,27 @@ int regulator_set_voltage(struct regulator *regulator, int min_uV, int max_uV)
 	ret = regulator_check_voltage(rdev, &min_uV, &max_uV);
 	if (ret < 0)
 		goto out;
+
+	/* restore original values in case of error */
+	old_min_uV = regulator->min_uV;
+	old_max_uV = regulator->max_uV;
 	regulator->min_uV = min_uV;
 	regulator->max_uV = max_uV;
 
 	ret = regulator_check_consumers(rdev, &min_uV, &max_uV);
 	if (ret < 0)
-		goto out;
+		goto out2;
 
 	ret = _regulator_do_set_voltage(rdev, min_uV, max_uV);
+	if (ret < 0)
+		goto out2;
 
 out:
+	mutex_unlock(&rdev->mutex);
+	return ret;
+out2:
+	regulator->min_uV = old_min_uV;
+	regulator->max_uV = old_max_uV;
 	mutex_unlock(&rdev->mutex);
 	return ret;
 }
@@ -3774,6 +3786,7 @@ static int __init regulator_init_complete(void)
 	struct regulation_constraints *c;
 	int enabled, ret;
 
+#ifndef CONFIG_REGULATOR_DUMMY
 	/*
 	 * Since DT doesn't provide an idiomatic mechanism for
 	 * enabling full constraints and since it's much more natural
@@ -3782,6 +3795,7 @@ static int __init regulator_init_complete(void)
 	 */
 	if (of_have_populated_dt())
 		has_full_constraints = true;
+#endif
 
 	mutex_lock(&regulator_list_mutex);
 

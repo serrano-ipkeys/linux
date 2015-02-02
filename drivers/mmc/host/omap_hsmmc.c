@@ -40,6 +40,11 @@
 #include <linux/pinctrl/consumer.h>
 #include <linux/pm_runtime.h>
 #include <linux/platform_data/mmc-omap.h>
+#include <linux/pinctrl/consumer.h>
+#include <linux/err.h>
+#include <mach/hardware.h>
+#include <plat/cpu.h>
+#include <linux/rstctl.h>
 
 /* OMAP HSMMC Host Controller Registers */
 #define OMAP_HSMMC_SYSSTATUS	0x0014
@@ -183,6 +188,8 @@ struct omap_hsmmc_host {
 	struct omap_hsmmc_next	next_data;
 
 	struct	omap_mmc_platform_data	*pdata;
+
+	struct rstctl		*rstctl;
 };
 
 static int omap_hsmmc_card_detect(struct device *dev, int slot)
@@ -390,6 +397,7 @@ static inline int omap_hsmmc_have_reg(void)
 static int omap_hsmmc_gpio_init(struct omap_mmc_platform_data *pdata)
 {
 	int ret;
+	unsigned long flags;
 
 	if (gpio_is_valid(pdata->slots[0].switch_pin)) {
 		if (pdata->slots[0].cover)
@@ -419,6 +427,24 @@ static int omap_hsmmc_gpio_init(struct omap_mmc_platform_data *pdata)
 	} else
 		pdata->slots[0].gpio_wp = -EINVAL;
 
+	if (gpio_is_valid(pdata->slots[0].gpio_reset)) {
+		flags = pdata->slots[0].gpio_reset_active_low ?
+				GPIOF_OUT_INIT_LOW : GPIOF_OUT_INIT_HIGH;
+		ret = gpio_request_one(pdata->slots[0].gpio_reset, flags,
+				"mmc_reset");
+		if (ret)
+			goto err_free_wp;
+
+		/* hold reset */
+		udelay(pdata->slots[0].gpio_reset_hold_us);
+
+		gpio_set_value(pdata->slots[0].gpio_reset,
+				!pdata->slots[0].gpio_reset_active_low);
+
+	} else
+		pdata->slots[0].gpio_reset = -EINVAL;
+
+
 	return 0;
 
 err_free_wp:
@@ -432,6 +458,8 @@ err_free_sp:
 
 static void omap_hsmmc_gpio_free(struct omap_mmc_platform_data *pdata)
 {
+	if (gpio_is_valid(pdata->slots[0].gpio_reset))
+		gpio_free(pdata->slots[0].gpio_reset);
 	if (gpio_is_valid(pdata->slots[0].gpio_wp))
 		gpio_free(pdata->slots[0].gpio_wp);
 	if (gpio_is_valid(pdata->slots[0].switch_pin))
@@ -786,7 +814,7 @@ omap_hsmmc_start_command(struct omap_hsmmc_host *host, struct mmc_command *cmd,
 	 * ac, bc, adtc, bcr. Only commands ending an open ended transfer need
 	 * a val of 0x3, rest 0x0.
 	 */
-	if (cmd == host->mrq->stop)
+	if (host->mrq && cmd == host->mrq->stop)
 		cmdtype = 0x3;
 
 	cmdreg = (cmd->opcode << 24) | (resptype << 16) | (cmdtype << 22);
@@ -827,6 +855,8 @@ static void omap_hsmmc_request_done(struct omap_hsmmc_host *host, struct mmc_req
 {
 	int dma_ch;
 	unsigned long flags;
+
+	BUG_ON(mrq == NULL);
 
 	spin_lock_irqsave(&host->irq_lock, flags);
 	host->req_in_progress = 0;
@@ -1040,6 +1070,7 @@ static void omap_hsmmc_do_irq(struct omap_hsmmc_host *host, int status)
 		}
 	}
 
+	OMAP_HSMMC_WRITE(host->base, STAT, status);
 	if (end_cmd || ((status & CC_EN) && host->cmd))
 		omap_hsmmc_cmd_done(host, host->cmd);
 	if ((end_trans || (status & TC_EN)) && host->mrq)
@@ -1059,7 +1090,6 @@ static irqreturn_t omap_hsmmc_irq(int irq, void *dev_id)
 		omap_hsmmc_do_irq(host, status);
 
 		/* Flush posted write */
-		OMAP_HSMMC_WRITE(host->base, STAT, status);
 		status = OMAP_HSMMC_READ(host->base, STAT);
 	}
 
@@ -1717,6 +1747,7 @@ static struct omap_mmc_platform_data *of_get_hsmmc_pdata(struct device *dev)
 	struct omap_mmc_platform_data *pdata;
 	struct device_node *np = dev->of_node;
 	u32 bus_width, max_freq;
+	enum of_gpio_flags reset_flags;
 
 	pdata = devm_kzalloc(dev, sizeof(*pdata), GFP_KERNEL);
 	if (!pdata)
@@ -1729,6 +1760,14 @@ static struct omap_mmc_platform_data *of_get_hsmmc_pdata(struct device *dev)
 	pdata->nr_slots = 1;
 	pdata->slots[0].switch_pin = of_get_named_gpio(np, "cd-gpios", 0);
 	pdata->slots[0].gpio_wp = of_get_named_gpio(np, "wp-gpios", 0);
+	reset_flags = 0;
+	pdata->slots[0].gpio_reset = of_get_named_gpio_flags(np,
+			"reset-gpios", 0, &reset_flags);
+	pdata->slots[0].gpio_reset_active_low =
+		(reset_flags & OF_GPIO_ACTIVE_LOW) != 0;
+	pdata->slots[0].gpio_reset_hold_us = 100;	/* default */
+	of_property_read_u32(np, "reset-gpio-hold-us",
+			&pdata->slots[0].gpio_reset_hold_us);
 
 	if (of_find_property(np, "ti,non-removable", NULL)) {
 		pdata->slots[0].nonremovable = true;
@@ -1748,6 +1787,9 @@ static struct omap_mmc_platform_data *of_get_hsmmc_pdata(struct device *dev)
 
 	if (of_find_property(np, "ti,needs-special-hs-handling", NULL))
 		pdata->slots[0].features |= HSMMC_HAS_HSPE_SUPPORT;
+
+	if (of_find_property(np, "ti,vcc-aux-disable-is-sleep", NULL))
+		pdata->slots[0].vcc_aux_disable_is_sleep = 1;
 
 	return pdata;
 }
@@ -1769,7 +1811,9 @@ static int omap_hsmmc_probe(struct platform_device *pdev)
 	const struct of_device_id *match;
 	dma_cap_mask_t mask;
 	unsigned tx_req, rx_req;
+	struct dmaengine_chan_caps *dma_chan_caps;
 	struct pinctrl *pinctrl;
+	struct rstctl *rctrl;
 
 	match = of_match_device(of_match_ptr(omap_mmc_of_match), &pdev->dev);
 	if (match) {
@@ -1789,6 +1833,32 @@ static int omap_hsmmc_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "No Slots\n");
 		return -ENXIO;
 	}
+
+	/* request reset control (bail if deffering) */
+	rctrl = rstctl_get(&pdev->dev, NULL);
+	if (IS_ERR(rctrl)) {
+		ret = PTR_ERR(rctrl);
+		if (ret == -EPROBE_DEFER)
+			return -EPROBE_DEFER;
+
+		if (ret != -ENODEV && ret != -ENOENT) {
+			dev_err(&pdev->dev, "Unrecoverable rstctl error\n");
+			return PTR_ERR(rctrl);
+		}
+		dev_warn(&pdev->dev, "Failed to get rstctl; not using any\n");
+		rctrl = NULL;
+	} else {
+		dev_info(&pdev->dev, "Got rstctl (%s:#%d name %s) label:%s\n",
+				rctrl->rdev->rdesc->name,
+				rctrl->line - rctrl->rdev->rdesc->lines,
+				rctrl->line->name, rctrl->label);
+
+		rstctl_deassert(rctrl);
+	}
+
+	pinctrl = devm_pinctrl_get_select_default(&pdev->dev);
+	if (IS_ERR(pinctrl))
+		dev_warn(&pdev->dev, "unable to select pin group\n");
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	irq = platform_get_irq(pdev, 0);
@@ -1821,6 +1891,7 @@ static int omap_hsmmc_probe(struct platform_device *pdev)
 	host->base	= ioremap(host->mapbase, SZ_4K);
 	host->power_mode = MMC_POWER_OFF;
 	host->next_data.cookie = 1;
+	host->rstctl	= rctrl;
 
 	platform_set_drvdata(pdev, host);
 
@@ -1877,6 +1948,16 @@ static int omap_hsmmc_probe(struct platform_device *pdev)
 	 * as we want. */
 	mmc->max_segs = 1024;
 
+	/* Eventually we should get our max_segs limitation for EDMA by
+	 * querying the dmaengine API */
+	if (pdev->dev.of_node) {
+		struct device_node *parent = of_node_get(pdev->dev.of_node->parent);
+		struct device_node *node;
+		node = of_find_node_by_name(parent, "edma");
+		if (node)
+			mmc->max_segs = 16;
+	}
+
 	mmc->max_blk_size = 512;       /* Block Length at max can be 1024 */
 	mmc->max_blk_count = 0xFFFF;    /* No. of Blocks is 16 bits */
 	mmc->max_req_size = mmc->max_blk_size * mmc->max_blk_count;
@@ -1915,19 +1996,30 @@ static int omap_hsmmc_probe(struct platform_device *pdev)
 	dma_cap_zero(mask);
 	dma_cap_set(DMA_SLAVE, mask);
 
-	host->rx_chan = dma_request_channel(mask, omap_dma_filter_fn, &rx_req);
+	host->rx_chan =
+		dma_request_slave_channel_compat(mask, omap_dma_filter_fn,
+						 &rx_req, &pdev->dev, "rx");
+
 	if (!host->rx_chan) {
 		dev_err(mmc_dev(host->mmc), "unable to obtain RX DMA engine channel %u\n", rx_req);
 		ret = -ENXIO;
 		goto err_irq;
 	}
 
-	host->tx_chan = dma_request_channel(mask, omap_dma_filter_fn, &tx_req);
+	host->tx_chan =
+		dma_request_slave_channel_compat(mask, omap_dma_filter_fn,
+						 &tx_req, &pdev->dev, "tx");
+
 	if (!host->tx_chan) {
 		dev_err(mmc_dev(host->mmc), "unable to obtain TX DMA engine channel %u\n", tx_req);
 		ret = -ENXIO;
 		goto err_irq;
 	}
+
+	/* Some DMA Engines only handle a limited number of SG segments */
+	dma_chan_caps = dma_get_channel_caps(host->rx_chan, DMA_DEV_TO_MEM);
+	if (dma_chan_caps && dma_chan_caps->seg_nr)
+		mmc->max_segs = dma_chan_caps->seg_nr;
 
 	/* Request IRQ for MMC operations */
 	ret = request_irq(host->irq, omap_hsmmc_irq, 0,
@@ -2065,6 +2157,7 @@ static int omap_hsmmc_remove(struct platform_device *pdev)
 
 	omap_hsmmc_gpio_free(host->pdata);
 	iounmap(host->base);
+	rstctl_put(host->rstctl);
 	mmc_free_host(host->mmc);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);

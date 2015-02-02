@@ -499,6 +499,29 @@ config USB_SWITCH_FSA9480
 	  stereo and mono audio, video, microphone and UART data to use
 	  a common connector port.
 
+config GPEVT
+	tristate "Amazing GPIO DMA Event Test Driver(tm)"
+	depends on TI_EDMA
+	help
+	  Simply amazing!
+
+config GROVE_I2C
+	tristate "Support Grove I2C Motor Driver"
+	depends on OF && I2C
+	help
+	  Say Y here to support a minimal Grove I2C Motor Driver
+
+config TIEQEP
+	tristate "EQEP Hardware quadrature encoder controller"
+	depends on SOC_AM33XX
+	select PWM_TIPWMSS
+	help
+	  Driver support for the EQEP quadrature encoder controller AM33XX
+	  TI SOC
+
+	  To compile this driver as a module, choose M here: the module
+	  will be called tieqep.
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"
@@ -507,4 +530,6 @@ source "drivers/misc/lis3lv02d/Kconfig"
 source "drivers/misc/carma/Kconfig"
 source "drivers/misc/altera-stapl/Kconfig"
 source "drivers/misc/mei/Kconfig"
+source "drivers/misc/cape/Kconfig"
+
 endmenu

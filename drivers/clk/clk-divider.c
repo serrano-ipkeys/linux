@@ -32,6 +32,11 @@
 #define div_mask(d)	((1 << (d->width)) - 1)
 #define is_power_of_two(i)	!(i & ~i)
 
+static unsigned int _get_mindiv(struct clk_divider *divider)
+{
+	return divider->min_div;
+}
+
 static unsigned int _get_table_maxdiv(const struct clk_div_table *table)
 {
 	unsigned int maxdiv = 0;
@@ -148,17 +153,18 @@ static int clk_divider_bestdiv(struct clk_hw *hw, unsigned long rate,
 {
 	struct clk_divider *divider = to_clk_divider(hw);
 	int i, bestdiv = 0;
-	unsigned long parent_rate, best = 0, now, maxdiv;
+	unsigned long parent_rate, best = 0, now, maxdiv, mindiv;
 
 	if (!rate)
 		rate = 1;
 
 	maxdiv = _get_maxdiv(divider);
+	mindiv = _get_mindiv(divider);
 
 	if (!(__clk_get_flags(hw->clk) & CLK_SET_RATE_PARENT)) {
 		parent_rate = *best_parent_rate;
 		bestdiv = DIV_ROUND_UP(parent_rate, rate);
-		bestdiv = bestdiv == 0 ? 1 : bestdiv;
+		bestdiv = bestdiv == 0 ? mindiv : bestdiv;
 		bestdiv = bestdiv > maxdiv ? maxdiv : bestdiv;
 		return bestdiv;
 	}
@@ -169,7 +175,7 @@ static int clk_divider_bestdiv(struct clk_hw *hw, unsigned long rate,
 	 */
 	maxdiv = min(ULONG_MAX / rate, maxdiv);
 
-	for (i = 1; i <= maxdiv; i++) {
+	for (i = mindiv; i <= maxdiv; i++) {
 		if (!_is_valid_div(divider, i))
 			continue;
 		parent_rate = __clk_round_rate(__clk_get_parent(hw->clk),
@@ -236,13 +242,18 @@ EXPORT_SYMBOL_GPL(clk_divider_ops);
 
 static struct clk *_register_divider(struct device *dev, const char *name,
 		const char *parent_name, unsigned long flags,
-		void __iomem *reg, u8 shift, u8 width,
+		void __iomem *reg, u8 shift, u8 width, u8 min_div,
 		u8 clk_divider_flags, const struct clk_div_table *table,
 		spinlock_t *lock)
 {
 	struct clk_divider *div;
 	struct clk *clk;
 	struct clk_init_data init;
+
+	if (!min_div) {
+		pr_err("%s: minimum divider cannot be zero\n", __func__);
+		return ERR_PTR(-EINVAL);
+	}
 
 	/* allocate the divider */
 	div = kzalloc(sizeof(struct clk_divider), GFP_KERNEL);
@@ -261,6 +272,7 @@ static struct clk *_register_divider(struct device *dev, const char *name,
 	div->reg = reg;
 	div->shift = shift;
 	div->width = width;
+	div->min_div = min_div;
 	div->flags = clk_divider_flags;
 	div->lock = lock;
 	div->hw.init = &init;
@@ -273,6 +285,29 @@ static struct clk *_register_divider(struct device *dev, const char *name,
 		kfree(div);
 
 	return clk;
+}
+
+/**
+ * clk_register_min_divider - register a divider clock having minimum divider
+ * constraints with clock framework
+ * @dev: device registering this clock
+ * @name: name of this clock
+ * @parent_name: name of clock's parent
+ * @flags: framework-specific flags
+ * @reg: register address to adjust divider
+ * @shift: number of bits to shift the bitfield
+ * @width: width of the bitfield
+ * @min_div: minimum allowable divider
+ * @clk_divider_flags: divider-specific flags for this clock
+ * @lock: shared register lock for this clock
+ */
+struct clk *clk_register_min_divider(struct device *dev, const char *name,
+		const char *parent_name, unsigned long flags,
+		void __iomem *reg, u8 shift, u8 width, u8 min_div,
+		u8 clk_divider_flags, spinlock_t *lock)
+{
+	return _register_divider(dev, name, parent_name, flags, reg, shift,
+			width, min_div, clk_divider_flags, NULL, lock);
 }
 
 /**
@@ -293,7 +328,8 @@ struct clk *clk_register_divider(struct device *dev, const char *name,
 		u8 clk_divider_flags, spinlock_t *lock)
 {
 	return _register_divider(dev, name, parent_name, flags, reg, shift,
-			width, clk_divider_flags, NULL, lock);
+			width, CLK_DIVIDER_MIN_DIV_DEFAULT, clk_divider_flags,
+			NULL, lock);
 }
 
 /**
@@ -317,5 +353,6 @@ struct clk *clk_register_divider_table(struct device *dev, const char *name,
 		spinlock_t *lock)
 {
 	return _register_divider(dev, name, parent_name, flags, reg, shift,
-			width, clk_divider_flags, table, lock);
+			width, CLK_DIVIDER_MIN_DIV_DEFAULT, clk_divider_flags,
+			table, lock);
 }

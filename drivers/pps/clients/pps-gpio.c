@@ -33,6 +33,11 @@
 #include <linux/pps-gpio.h>
 #include <linux/gpio.h>
 #include <linux/list.h>
+#include <linux/pinctrl/pinctrl.h>
+#include <linux/pinctrl/pinmux.h>
+#include <linux/pinctrl/consumer.h>
+#include <linux/of_device.h>
+#include <linux/of_gpio.h>
 
 /* Info for each registered platform device */
 struct pps_gpio_device_data {
@@ -104,15 +109,68 @@ get_irqf_trigger_flags(const struct pps_gpio_platform_data *pdata)
 	return flags;
 }
 
+#ifdef CONFIG_OF
+static const struct of_device_id pps_gpio_dt_ids[] = {
+	{ .compatible = "pps-gpio", },
+	{ /* sentinel */ }
+};
+MODULE_DEVICE_TABLE(of, pps_gpio_dt_ids);
+
+static struct pps_gpio_platform_data *
+of_get_pps_gpio_pdata(struct platform_device *pdev)
+{
+	struct device_node *np = pdev->dev.of_node;
+	struct pps_gpio_platform_data *pdata;
+	int ret;
+
+	pdata = devm_kzalloc(&pdev->dev, sizeof(*pdata), GFP_KERNEL);
+	if (!pdata)
+		return NULL;
+
+	ret = of_get_gpio(np, 0);
+	if (ret < 0) {
+		pr_err("failed to get GPIO from device tree\n");
+		return NULL;
+	}
+
+	pdata->gpio_pin = ret;
+	pdata->gpio_label = PPS_GPIO_NAME;
+
+	if (of_get_property(np, "assert-falling-edge", NULL))
+		pdata->assert_falling_edge = true;
+
+	return pdata;
+}
+#else
+static struct pps_gpio_platform_data *
+of_get_pps_gpio_pdata(struct platform_device *pdev)
+{
+	return NULL;
+}
+#endif
+
 static int pps_gpio_probe(struct platform_device *pdev)
 {
 	struct pps_gpio_device_data *data;
 	int irq;
 	int ret;
-	int err;
 	int pps_default_params;
-	const struct pps_gpio_platform_data *pdata = pdev->dev.platform_data;
+	struct pinctrl *pinctrl;
+	struct pps_gpio_platform_data *pdata;
+	const struct of_device_id *match;
 
+	match = of_match_device(pps_gpio_dt_ids, &pdev->dev);
+	if (match)
+		pdev->dev.platform_data = of_get_pps_gpio_pdata(pdev);
+	pdata = pdev->dev.platform_data;
+
+	if (!pdata)
+		return -ENODEV;
+
+	/* PINCTL setup */
+	pinctrl = devm_pinctrl_get_select_default(&pdev->dev);
+	if (IS_ERR(pinctrl))
+		pr_warn("pins are not configured from the driver\n");
 
 	/* GPIO setup */
 	ret = pps_gpio_setup(pdev);
@@ -123,15 +181,13 @@ static int pps_gpio_probe(struct platform_device *pdev)
 	irq = gpio_to_irq(pdata->gpio_pin);
 	if (irq < 0) {
 		pr_err("failed to map GPIO to IRQ: %d\n", irq);
-		err = -EINVAL;
-		goto return_error;
+		return -EINVAL;
 	}
 
 	/* allocate space for device info */
 	data = kzalloc(sizeof(struct pps_gpio_device_data), GFP_KERNEL);
 	if (data == NULL) {
-		err = -ENOMEM;
-		goto return_error;
+		return -ENOMEM;
 	}
 
 	/* initialize PPS specific parts of the bookkeeping data structure. */
@@ -152,42 +208,33 @@ static int pps_gpio_probe(struct platform_device *pdev)
 	if (data->pps == NULL) {
 		kfree(data);
 		pr_err("failed to register IRQ %d as PPS source\n", irq);
-		err = -EINVAL;
-		goto return_error;
+		return -EINVAL;
 	}
 
 	data->irq = irq;
 	data->pdata = pdata;
 
 	/* register IRQ interrupt handler */
-	ret = request_irq(irq, pps_gpio_irq_handler,
+	ret = devm_request_irq(&pdev->dev, irq, pps_gpio_irq_handler,
 			get_irqf_trigger_flags(pdata), data->info.name, data);
 	if (ret) {
 		pps_unregister_source(data->pps);
 		kfree(data);
 		pr_err("failed to acquire IRQ %d\n", irq);
-		err = -EINVAL;
-		goto return_error;
+		return -EINVAL;
 	}
 
 	platform_set_drvdata(pdev, data);
 	dev_info(data->pps->dev, "Registered IRQ %d as PPS source\n", irq);
 
 	return 0;
-
-return_error:
-	gpio_free(pdata->gpio_pin);
-	return err;
 }
 
 static int pps_gpio_remove(struct platform_device *pdev)
 {
 	struct pps_gpio_device_data *data = platform_get_drvdata(pdev);
-	const struct pps_gpio_platform_data *pdata = data->pdata;
 
 	platform_set_drvdata(pdev, NULL);
-	free_irq(data->irq, data);
-	gpio_free(pdata->gpio_pin);
 	pps_unregister_source(data->pps);
 	pr_info("removed IRQ %d as PPS source\n", data->irq);
 	kfree(data);
@@ -199,27 +246,12 @@ static struct platform_driver pps_gpio_driver = {
 	.remove		= pps_gpio_remove,
 	.driver		= {
 		.name	= PPS_GPIO_NAME,
-		.owner	= THIS_MODULE
+		.owner	= THIS_MODULE,
+		.of_match_table	= of_match_ptr(pps_gpio_dt_ids),
 	},
 };
 
-static int __init pps_gpio_init(void)
-{
-	int ret = platform_driver_register(&pps_gpio_driver);
-	if (ret < 0)
-		pr_err("failed to register platform driver\n");
-	return ret;
-}
-
-static void __exit pps_gpio_exit(void)
-{
-	platform_driver_unregister(&pps_gpio_driver);
-	pr_debug("unregistered platform driver\n");
-}
-
-module_init(pps_gpio_init);
-module_exit(pps_gpio_exit);
-
+module_platform_driver(pps_gpio_driver);
 MODULE_AUTHOR("Ricardo Martins <rasm@fe.up.pt>");
 MODULE_AUTHOR("James Nuss <jamesnuss@nanometrics.ca>");
 MODULE_DESCRIPTION("Use GPIO pin as PPS source");

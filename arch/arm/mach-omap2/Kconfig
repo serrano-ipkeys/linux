@@ -18,6 +18,8 @@ config ARCH_OMAP2PLUS_TYPICAL
 	select TWL4030_CORE if ARCH_OMAP3 || ARCH_OMAP4
 	select TWL4030_POWER if ARCH_OMAP3 || ARCH_OMAP4
 	select VFP
+	select OF_OVERLAY
+	select OF_RESOLVE
 	help
 	  Compile a kernel suitable for booting most boards
 
@@ -35,6 +37,9 @@ config ARCH_OMAP2
 	default y
 	select CPU_V6
 	select MULTI_IRQ_HANDLER
+	select MACH_AM335XEVM
+	select MACH_AM335XIAEVM
+	select MACH_TAM335X
 	select SOC_HAS_OMAP2_SDRC
 	select COMMON_CLK
 
@@ -117,6 +122,9 @@ config SOC_AM33XX
 	select CPU_V7
 	select MULTI_IRQ_HANDLER
 	select COMMON_CLK
+	select MACH_AM335XEVM
+	select MACH_AM335XIAEVM
+	select MACH_TAM335X
 
 config OMAP_PACKAGE_ZAF
        bool
@@ -152,6 +160,15 @@ config MACH_OMAP_GENERIC
 	help
 	  Support for generic TI OMAP2+ boards using Flattened Device Tree.
 	  More information at Documentation/devicetree
+
+config MACH_AM335XEVM
+       bool
+
+config MACH_AM335XIAEVM
+       bool
+
+config MACH_TAM335X
+       bool
 
 config MACH_OMAP2_TUSB6010
 	bool

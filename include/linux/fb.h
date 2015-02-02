@@ -19,6 +19,8 @@ struct vm_area_struct;
 struct fb_info;
 struct device;
 struct file;
+struct videomode;
+struct device_node;
 
 /* Definitions below are used in the parsed monitor specs */
 #define FB_DPMS_ACTIVE_OFF	1
@@ -713,6 +715,22 @@ extern void fb_edid_add_monspecs(unsigned char *edid,
 extern void fb_destroy_modedb(struct fb_videomode *modedb);
 extern int fb_find_mode_cvt(struct fb_videomode *mode, int margins, int rb);
 extern unsigned char *fb_ddc_read(struct i2c_adapter *adapter);
+
+#if defined(CONFIG_OF_VIDEOMODE) && defined(CONFIG_FB_MODE_HELPERS)
+extern int of_get_fb_videomode(struct device_node *np,
+			       struct fb_videomode *fb,
+			       int index);
+#else
+static inline int of_get_fb_videomode(struct device_node *np,
+				      struct fb_videomode *fb,
+				      int index)
+{
+	return -EINVAL;
+}
+#endif
+
+extern int fb_videomode_from_videomode(const struct videomode *vm,
+				       struct fb_videomode *fbmode);
 
 /* drivers/video/modedb.c */
 #define VESA_MODEDB_SIZE 34
