@@ -1510,6 +1510,61 @@ static int bone_capemgr_remove_slot(struct bone_cape_slot *slot)
 	return ret;
 }
 
+static int bone_bbrd_fill_override(struct bone_baseboard *bbrd,
+		struct device_node *node)
+{
+	const struct ee_field *sig_field;
+	struct property *prop;
+	int i, len;
+	u32 val;
+	char *p;
+
+	bbrd->probe_failed = 0;
+	bbrd->probed = 0;
+
+	/* zero out signature */
+	memset(bbrd->signature, 0, sizeof(bbrd->signature));
+
+	/* first, fill in all with override defaults */
+	for (i = 0; i < ARRAY_SIZE(bbrd_sig_fields); i++) {
+
+		sig_field = &bbrd_sig_fields[i];
+
+		/* point to the entry */
+		p = bbrd->signature + sig_field->start;
+
+		if (sig_field->override)
+			memcpy(p, sig_field->override,
+					sig_field->size);
+		else
+			memset(p, 0, sig_field->size);
+	}
+
+	/* and now, fill any override data from the node */
+	if (node != NULL) {
+		for (i = 0; i < ARRAY_SIZE(bbrd_sig_fields); i++) {
+
+			sig_field = &bbrd_sig_fields[i];
+
+			/* find property with the same name (if any) */
+			prop = of_find_property(node, sig_field->name, NULL);
+			if (prop == NULL)
+				continue;
+
+			/* point to the entry */
+			p = bbrd->signature + sig_field->start;
+
+			/* copy and zero out any remainder */
+			len = prop->length;
+			if (prop->length > sig_field->size)
+				len = sig_field->size;
+			memcpy(p, prop->value, len);
+			if (len < sig_field->size)
+				memset(p + len, 0, sig_field->size - len);
+		}
+	}
+}
+
 static int bone_slot_fill_override(struct bone_cape_slot *slot,
 		struct device_node *node,
 		const char *part_number, const char *version)
@@ -1948,28 +2003,43 @@ bone_capemgr_probe(struct platform_device *pdev)
 		ret = -ENODEV;
 		goto err_exit;
 	}
-	bbrd->client = of_find_i2c_device_by_node(eeprom_node);
-	of_node_put(eeprom_node);
-	eeprom_node = NULL;
-	if (bbrd->client == NULL) {
-		dev_err(&pdev->dev, "Failed to find baseboard i2c client\n");
-		ret = -ENODEV;
-		goto err_exit;
+// srs mods to override baseboard eeprom
+#define GREEN	"\x1B[32m"
+#define RESTORE "\x1B[0m"
+	if (of_property_read_bool(eeprom_node, "ti,bbrd-override")) {
+		bone_bbrd_fill_override(bbrd, eeprom_node);
+		of_node_put(eeprom_node);
+		eeprom_node = NULL;
+		dev_info(&pdev->dev, GREEN "srs overriding bb eeprom\n" RESTORE);
+		bbrd->override = 1;
 	}
+	else {
+// end srs mods
+		bbrd->client = of_find_i2c_device_by_node(eeprom_node);
+		of_node_put(eeprom_node);
+		eeprom_node = NULL;
+		if (bbrd->client == NULL) {
+			dev_err(&pdev->dev, "Failed to find baseboard i2c client\n");
+			ret = -ENODEV;
+			goto err_exit;
+		}
 
-	/* release ref to the node & get ref of the i2c client */
-	i2c_use_client(bbrd->client);
+		/* release ref to the node & get ref of the i2c client */
+		i2c_use_client(bbrd->client);
 
-	/* grab the memory accessor of the eeprom */
-	bbrd->macc = i2c_eeprom_get_memory_accessor(bbrd->client);
-	if (IS_ERR_OR_NULL(bbrd->macc)) {
-		dev_err(&pdev->dev, "Failed to get "
-				"baseboard memory accessor\n");
-		ret = bbrd->macc == NULL ? -ENODEV :
-			PTR_ERR(bbrd->macc);
-		bbrd->macc = NULL;
-		goto err_exit;
+		/* grab the memory accessor of the eeprom */
+		bbrd->macc = i2c_eeprom_get_memory_accessor(bbrd->client);
+		if (IS_ERR_OR_NULL(bbrd->macc)) {
+			dev_err(&pdev->dev, "Failed to get "
+					"baseboard memory accessor\n");
+			ret = bbrd->macc == NULL ? -ENODEV :
+				PTR_ERR(bbrd->macc);
+			bbrd->macc = NULL;
+			goto err_exit;
+		}
+// srs mod
 	}
+// end srs mod
 
 	ret = bone_baseboard_scan(bbrd);
 	if (ret != 0) {

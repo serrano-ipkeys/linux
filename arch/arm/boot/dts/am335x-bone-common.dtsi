@@ -103,7 +103,8 @@
 		compatible = "ti,bone-capemgr";
 		status = "okay";
 
-		eeprom = <&baseboard_eeprom>;
+/*		eeprom = <&baseboard_eeprom>; */
+		eeprom = <&ipkeys_bbrd_override_eeprom>;
 
 		baseboardmaps {
 			baseboard_beaglebone: board@0 {
@@ -115,6 +116,26 @@
 				board-name = "A335BNLT";
 				compatible-name = "ti,beaglebone-black";
 			};
+
+			baseboard_ipkeys: board@2 {
+				board-name = "A335IPKY";
+				compatible-name = "ti,beaglebone-black";
+			};
+
+		};
+
+		/* added properties to baseboard eeprom to allow override.
+		 * New properties are:
+		 *    ti,bbrd-override (bool) (if not present, no override, other new properties ignored)
+		 *    header (integer, 4 bytes, 0xAA, 0x55, 0x33, 0xEE)
+		 *    board-name (string, 8 chars, default = "Board Na")
+		 *    revision   (string, 4 chars, default = "00A0")
+		 *    serial-number (string, 12 chars, default = "0000000000")
+		 *    config-option (32 bytes, no default)
+		 */
+		ipkeys_bbrd_override_eeprom: baseboard_override_eeprom@0 {
+			ti,bbrd-override;
+			board-name = "A335IPKY";
 		};
 
 		slots {
@@ -507,7 +528,7 @@
 			/* VDD_MPU voltage limits 0.95V - 1.26V with +/-4% tolerance */
 			regulator-name = "vdd_mpu";
 			regulator-min-microvolt = <925000>;
-			regulator-max-microvolt = <1325000>;
+			regulator-max-microvolt = <1150000>;	/* nriedel IPKeys was 1325000 */
 			regulator-boot-on;
 			regulator-always-on;
 		};
