@@ -25,16 +25,132 @@
 
 	am33xx_pinmux: pinmux@44e10800 {
 		pinctrl-names = "default";
-		pinctrl-0 = <&userled_pins>;
+		pinctrl-0 = <	&dout_pins	&input_pins	&userled_pins	&rs485_pins	&din_pins
+						&relay_pins	&emu2_pins	&emmc_rst_pins	&rtc_pins	&eth2_pins
+						&test_pins
+			>;
+
+		dout_pins: pinmux_dout_pins {												
+			pinctrl-single,pins = <												
+				0xC0	0x2F	//	DOUT0, mode=GPIO2_14, mux pin=48, gpio=GPIO2_14 #78, disable HDMI/LCD! 0x2F = slew fast, I/O, pull disabled, mode 7, SYS_BOOT8
+				0xC4	0x2F	//	DOUT1, mode=GPIO2_15, mux pin=49, gpio=GPIO2_15 #79, disable HDMI/LCD! 0x2F = slew fast, I/O, pull disabled, mode 7, SYS_BOOT9
+				0xC8	0x2F	//	DOUT2, mode=GPIO2_16, mux pin=50, gpio=GPIO2_16 #80, disable HDMI/LCD! 0x2F = slew fast, I/O, pull disabled, mode 7, SYS_BOOT10
+				0xCC	0x2F	//	DOUT3, mode=GPIO2_17, mux pin=51, gpio=GPIO2_17 #81, disable HDMI/LCD! 0x2F = slew fast, I/O, pull disabled, mode 7, SYS_BOOT11
+			>;												
+		};												
+
+		input_pins: pinmux_input_pins {											
+			pinctrl-single,pins = <											
+				0xA0	0x2F	//	Digital Input, mode=GPIO2_6,  mux pin=40, gpio=GPIO2_6  #70, disable HDMI/LCD! 0x2F = slew fast, I/O, pull disabled, mode 7, SYS_BOOT0
+				0xA4	0x2F	//	Digital Input, mode=GPIO2_7,  mux pin=41, gpio=GPIO2_7  #71, disable HDMI/LCD! 0x2F = slew fast, I/O, pull disabled, mode 7, SYS_BOOT1
+				0xA8	0x2F	//	Digital Input, mode=GPIO2_8,  mux pin=42, gpio=GPIO2_8  #72, disable HDMI/LCD! 0x2F = slew fast, I/O, pull disabled, mode 7, SYS_BOOT2
+				0xAC	0x2F	//	Digital Input, mode=GPIO2_9,  mux pin=43, gpio=GPIO2_9  #73, disable HDMI/LCD! 0x2F = slew fast, I/O, pull disabled, mode 7, SYS_BOOT3
+				0xB0	0x2F	//	Digital Input, mode=GPIO2_10, mux pin=44, gpio=GPIO2_10 #74, disable HDMI/LCD! 0x2F = slew fast, I/O, pull disabled, mode 7, SYS_BOOT4
+				0xB4	0x2F	//	Digital Input, mode=GPIO2_11, mux pin=45, gpio=GPIO2_11 #75, disable HDMI/LCD! 0x2F = slew fast, I/O, pull disabled, mode 7, SYS_BOOT5
+				0xB8	0x2F	//	Digital Input, mode=GPIO2_12, mux pin=46, gpio=GPIO2_12 #76, disable HDMI/LCD! 0x2F = slew fast, I/O, pull disabled, mode 7, SYS_BOOT6
+				0xBC	0x2F	//	Digital Input, mode=GPIO2_13, mux pin=47, gpio=GPIO2_13 #77, disable HDMI/LCD! 0x2F = slew fast, I/O, pull disabled, mode 7, SYS_BOOT7
+				0xD0	0x2F	//	Digital Input, mode=GPIO0_8,  mux pin=52, gpio=GPIO0_8  #8,  disable HDMI/LCD! 0x2F = slew fast, I/O, pull disabled, mode 7, SYS_BOOT12
+				0xD4	0x2F	//	Digital Input, mode=GPIO0_9,  mux pin=53, gpio=GPIO0_9  #9,  disable HDMI/LCD! 0x2F = slew fast, I/O, pull disabled, mode 7, SYS_BOOT13
+				0xD8	0x2F	//	Digital Input, mode=GPIO0_10, mux pin=54, gpio=GPIO0_10 #10, disable HDMI/LCD! 0x2F = slew fast, I/O, pull disabled, mode 7, SYS_BOOT14
+				0xDC	0x2F	//	Digital Input, mode=GPIO0_11, mux pin=55, gpio=GPIO0_11 #11, disable HDMI/LCD! 0x2F = slew fast, I/O, pull disabled, mode 7, SYS_BOOT15
+			>;											
+		};											
 
 		userled_pins: pinmux_userled_pins {
-			pinctrl-single,pins = <
-				0x54 0x7	/* gpmc_a5.gpio1_21, OUTPUT | MODE7 */
-				0x58 0x17	/* gpmc_a6.gpio1_22, OUTPUT_PULLUP | MODE7 */
-				0x5c 0x7	/* gpmc_a7.gpio1_23, OUTPUT | MODE7 */
-				0x60 0x17	/* gpmc_a8.gpio1_24, OUTPUT_PULLUP | MODE7 */
-			>;
+			pinctrl-single,pins = <											
+				0xE0	0x2F	//	LED0, mode=GPIO2_22, mux pin=56, gpio=GPIO2_22 #86, Per charles disable pull (we have external resistors)
+				0xE4	0x2F	//	LED1, mode=GPIO2_23, mux pin=57, gpio=GPIO2_23 #87, Per charles disable pull (we have external resistors)
+				0xE8	0x2F	//	LED2, mode=GPIO2_24, mux pin=58, gpio=GPIO2_24 #88, Per charles disable pull (we have external resistors)
+				0xEC	0x2F	//	LED3, mode=GPIO2_25, mux pin=59, gpio=GPIO2_25 #89, Per charles disable pull (we have external resistors)
+			>;											
+		};											
+
+
+		rs485_pins: pinmux_rs485_pins {
+			pinctrl-single,pins = <											
+				0x180	0x28	//	RS485, mode=UART1_RXD, mux pin=96, gpio=GPIO0_14 #14, slew=fast,I/O,pull disabled,mode=0
+				0x184	0x08	//	RS485, mode=UART1_TXD, mux pin=97, gpio=GPIO0_15 #15, slew=fast,  O,pull disabled,mode=0
+			>;											
+		};											
+
+		din_pins: pinmux_din_pins {
+			pinctrl-single,pins = <											
+				0x190	0x27	//	DIN0, mode=GPIO3_14, mux pin=100, gpio=GPIO3_14	#110, 0x27 = slew=fast,I/O,pulldown,mode=7
+				0x194	0x27	//	DIN1, mode=GPIO3_15, mux pin=101, gpio=GPIO3_15	#111, 0x27 = slew=fast,I/O,pulldown,mode=7
+				0x198	0x27	//	DIN2, mode=GPIO3_16, mux pin=102, gpio=GPIO3_16	#112, 0x27 = slew=fast,I/O,pulldown,mode=7
+				0x19C	0x27	//	DIN3, mode=GPIO3_17, mux pin=103, gpio=GPIO3_17	#113, 0x27 = slew=fast,I/O,pulldown,mode=7
+				0x30	0x27	//	DIN4, mode=GPIO1_12, mux pin=12,  gpio=GPIO1_12	#44,  0x27 = slew=fast,I/O,pulldown,mode=7
+				0x34	0x27	//	DIN5, mode=GPIO1_13, mux pin=13,  gpio=GPIO1_13	#45,  0x27 = slew=fast,I/O,pulldown,mode=7
+				0x38	0x27	//	DIN6, mode=GPIO1_14, mux pin=14,  gpio=GPIO1_14	#46,  0x27 = slew=fast,I/O,pulldown,mode=7
+				0x3C	0x27	//	DIN7, mode=GPIO1_15, mux pin=15,  gpio=GPIO1_15	#47,  0x27 = slew=fast,I/O,pulldown,mode=7
+			>;											
 		};
+
+		relay_pins: pinmux_relay_pins {
+			pinctrl-single,pins = <											
+				0x90	0x0F	//	Relay0, mode=GPIO2_2, mux pin=36, gpio=GPIO2_2 #66, slew=fast,O,pull disabled,mode=7
+				0x94	0x0F	//	Relay1, mode=GPIO2_3, mux pin=37, gpio=GPIO2_3 #67, slew=fast,O,pull disabled,mode=7
+				0x98	0x0F	//	Relay2, mode=GPIO2_4, mux pin=38, gpio=GPIO2_4 #68, slew=fast,O,pull disabled,mode=7
+				0x9C	0x0F	//	Relay3, mode=GPIO2_5, mux pin=39, gpio=GPIO2_5 #69, slew=fast,O,pull disabled,mode=7
+			>;											
+		};											
+
+		emu2_pins: pinmux_emu2_pins {
+			pinctrl-single,pins = <											
+				0x1A4	0x34	//	JTAG_EMU2, mode=EMU2, mux pin=105, gpio=GPIO3_19 #115, 0x34 = slew fast, I/O, pullup, mode 4 (used same settings as EMU0 and EMU1 for I/O, slew, and pullup)
+			>;											
+		};											
+
+		rtc_pins: pinmux_rtc_pins {
+			pinctrl-single,pins = <											
+				0x1B0	0x27	//	RTC_INT, mode=GPIO0_19, mux pin=108, gpio=GPIO0_19 #19, setup as GPIO for now - See firmware/capes/BB-BONE-CRYPTO-00A0.dts and BB-BONE-RTC-00A0.dts - uses ds1307 driver for RTC!!
+			>;											
+		};											
+
+		emmc_rst_pins: pinmux_emmc_rst_pins {
+			pinctrl-single,pins = <											
+				0x7C	0x0F	//	EMMC_RST_INT, mode=GPIO1_29, mux pin=31, gpio=GPIO1_29 #61, slew=fast, O, pull disabled, mode 7
+			>;											
+		};											
+
+		eth2_pins: pinmux_eth2_pins {
+			pinctrl-single,pins = <											
+				0x40	0x01	//	Ethernet 2nd module, mode=GMII2_TXEN,  mux pin=16, gpio=GPIO1_16 #48, slew fast, O, pulldown, mode 1
+				0x44	0x21	//	Ethernet 2nd module, mode=GMII2_RXDV,  mux pin=17, gpio=GPIO1_17 #49, slew fast, I, pulldown, mode 1
+				0x48	0x01	//	Ethernet 2nd module, mode=GMII2_TXD3,  mux pin=18, gpio=GPIO1_18 #50, slew fast, O, pulldown, mode 1
+				0x4C	0x01	//	Ethernet 2nd module, mode=GMII2_TXD2,  mux pin=19, gpio=GPIO1_19 #51, slew fast, O, pulldown, mode 1
+				0x50	0x01	//	Ethernet 2nd module, mode=GMII2_TXD1,  mux pin=20, gpio=GPIO1_20 #52, slew fast, O, pulldown, mode 1
+				0x54	0x01	//	Ethernet 2nd module, mode=GMII2_TXD0,  mux pin=21, gpio=GPIO1_21 #53, slew fast, O, pulldown, mode 1
+				0x58	0x21	//	Ethernet 2nd module, mode=GMII2_TXCLK, mux pin=22, gpio=GPIO1_22 #54, slew fast, I, pulldown, mode 1
+				0x5C	0x21	//	Ethernet 2nd module, mode=GMII2_RXCLK, mux pin=23, gpio=GPIO1_23 #55, slew fast, I, pulldown, mode 1
+				0x60	0x21	//	Ethernet 2nd module, mode=GMII2_RXD3,  mux pin=24, gpio=GPIO1_24 #56, slew fast, I, pulldown, mode 1
+				0x64	0x21	//	Ethernet 2nd module, mode=GMII2_RXD2,  mux pin=25, gpio=GPIO1_25 #57, slew fast, I, pulldown, mode 1
+				0x68	0x21	//	Ethernet 2nd module, mode=GMII2_RXD1,  mux pin=26, gpio=GPIO1_26 #58, slew fast, I, pulldown, mode 1
+				0x6C	0x21	//	Ethernet 2nd module, mode=GMII2_RXD0,  mux pin=27, gpio=GPIO1_27 #59, slew fast, I, pulldown, mode 1
+				0x78	0x29	//	Ethernet 2nd module, mode=GMII2_COL,   mux pin=30, gpio=GPIO1_28 #60, slew=fast, I/O, pull disabled, mode = 1
+				0x70	0x29	//	Ethernet 2nd module, mode=GMII2_CRS,   mux pin=28, gpio=GPIO0_30 #30, slew=fast, I/O, pull disabled, mode = 1
+				0x74	0x21	//	Ethernet 2nd module, mode=GMII2_RXERR, mux pin=29, gpio=GPIO0_31 #31, slew=fast,I/O,pulldown, mode=1
+			>;											
+		};											
+
+		test_pins: pinmux_test_pins {
+			pinctrl-single,pins = <											
+				0x1A0	0x27	//	TP41	 mode=	GPIO3_18	 mux pin= 	104	 gpio= 	GPIO3_18	114	 0x27 = slew fast, I/O, pull down, mode 7
+				0x1AC	0x27	//	TP36	 mode=	GPIO3_21	 mux pin= 	107	 gpio= 	GPIO3_21	117	 0x2F = slew fast, I/O, pull down, mode 7
+				0x154	0x27	//	TP32	 mode=	GPIO0_3	 mux pin= 	85	 gpio= 	GPIO0_3	3	slew=fast,I/O,pulldown,mode=7
+				0x150	0x27	//	TP31	 mode=	GPIO0_2	 mux pin= 	84	 gpio= 	GPIO0_2	2	slew=fast,I/O,pulldown,mode=7
+				0x16C	0x27	//	TP33	 mode=	GPIO1_9	 mux pin= 	91	 gpio= 	GPIO1_9	41	slew=fast,I/O,pulldown,mode=7
+				//0x178	0x27	//	TP34	 mode=	GPIO0_12	 mux pin= 	94	 gpio= 	GPIO0_12	12	disable i2c2 pins! slew=fast,I/O,pulldown,mode=7
+				//0x17C	0x27	//	TP35	 mode=	GPIO0_13	 mux pin= 	95	 gpio= 	GPIO0_13	13	disable i2c2 pins! slew=fast,I/O,pulldown,mode=7
+				0x20	0x27	//	TP23	 mode=	GPIO0_22	 mux pin= 	8	 gpio= 	GPIO0_22	22	slew=fast,I/O,pulldown,mode=7
+				0x24	0x27	//	TP24	 mode=	GPIO0_23	 mux pin= 	9	 gpio= 	GPIO0_23	23	slew=fast,I/O,pulldown,mode=7
+				0x28	0x27	//	TP25	 mode=	GPIO0_26	 mux pin= 	10	 gpio= 	GPIO0_26	26	slew=fast,I/O,pulldown,mode=7
+				0x2C	0x27	//	TP26	 mode=	GPIO0_27	 mux pin= 	11	 gpio= 	GPIO0_27	27	slew=fast,I/O,pulldown,mode=7
+				0x88	0x27	//	TP29	 mode=	GPIO2_0	 mux pin= 	34	 gpio= 	GPIO2_0	64	0
+			>;											
+		};											
+
+
 		i2c0_pins: pinmux_i2c0_pins {
 			pinctrl-single,pins = <
 				0x188 0x70 	/* i2c0_sda, SLEWCTRL_SLOW | INPUT_PULLUP | MODE0 */
@@ -166,6 +282,7 @@
 			};
 
 			/* Nixie cape version A0 without an EEPROM */
+/* --- srs remove begin --- *
 			slot@7 {
 				ti,cape-override;
 				compatible = "kernel-command-line", "runtime";
@@ -174,7 +291,7 @@
 				manufacturer = "Ranostay Industries";
 				part-number = "BB-BONE-NIXIE";
 			};
-
+ * --- srs remove end  --- */
 			/* adafruit 1.8" TFT prototype cape */
 			slot@8 {
 				ti,cape-override;
@@ -254,6 +371,7 @@
 			 };
 
 			/* Beaglebone black has it soldered on */
+/*--- srs remove begin --- *
 			slot@101 {
 				ti,cape-override;
 				priority = <1>;
@@ -263,8 +381,10 @@
 				manufacturer = "Texas Instruments";
 				part-number = "BB-BONELT-HDMI";
 			};
+ * --- srs remove end --- */
 
 			/* Beaglebone black has it soldered on (but no audio) */
+/* --- srs remove begin --- *
 			slot@102 {
 				ti,cape-override;
 				priority = <2>;
@@ -274,7 +394,7 @@
 				manufacturer = "Texas Instruments";
 				part-number = "BB-BONELT-HDMIN";
 			};
-
+ * --- srs remove end --- */
 		};
 
 		/* mapping between board names and dtb objects */

@@ -11,6 +11,39 @@
 
 /include/ "am335x-bone-common.dtsi"
 
+/* begin srs adds */
+
+/* loading the ADC firmware here causes the sysfs helper interfaces
+ * not to be installed (the raw sysfs interfaces do get installed ok).
+ * Others have reported this same problem. Looks like
+ * the ADC driver isn't installed before the helper tries to access the
+ * channels, so the helper bails and doesn't create the sysfs interfaces.
+ * The raw input interfaces get installed by the ADC driver ok.
+ * I'll leave this here in case we get a chance to come back and see
+ * if there is a way to force the driver to load first. Or we could just
+ * hack the bone-iio-helper_probe function in bone-iio-helper.c to
+ * ignore the error and install the sysfs interfaces anyway.
+ */
+
+/* -- begin removed --
+/ {
+	bone_capemgr {
+		slots {
+			slot@103 {
+				ti,cape-override;
+				priority = <1>;
+				compatible = "ti,beaglebone-black";
+				board-name = "Bone-Black-ADC";
+				version = "00A0";
+				manufacturer = "Texas Instruments";
+				part-number = "BB-ADC";
+			};
+		};
+	};
+};
+ -- end removed -- */
+/* end srs adds */
+
 &am33xx_pinmux {
 	rstctl_pins: pinmux_rstctl_pins {
 		pinctrl-single,pins = <
