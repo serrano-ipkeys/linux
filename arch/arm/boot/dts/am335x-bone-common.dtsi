@@ -156,6 +156,12 @@
 				0x18c 0x70	/* i2c0_scl, SLEWCTRL_SLOW | INPUT_PULLUP | MODE0 */
 			>;
 		};
+		i2c1_pins: pinmux_i2c1_pins {
+			pinctrl-single,pins = <
+				0x158 0x6A	/* spi0_d1.i2c1_sda, SLEWCTRL_SLOW | PULL_DISABLE | MODE2 */
+				0x15C 0x6A 	/* spi_cs0.i2c1_scl, SLEWCTRL_SLOW | PULL_DISABLE | MODE2 */
+			>;
+		};
 		i2c2_pins: pinmux_i2c2_pins {
 			pinctrl-single,pins = <
 				0x178 0x73 	/* uart1_ctsn.i2c2_sda, SLEWCTRL_SLOW | INPUT_PULLUP | MODE3 */
@@ -212,10 +218,11 @@
 				linux,default-trigger = "mmc1";
 			};
 		};
-
+/* srs removed 2/20/15
 		rtc@44e3e000 {
 			ti,system-power-controller;
 		};
+*/
 	};
 
 	bone_capemgr {
@@ -604,6 +611,20 @@
 		compatible = "at,24c256";
 		reg = <0x50>;
 	};
+};
+
+&i2c1 {
+	status = "okay";
+	clock-frequency = <100000>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c1_pins>;
+
+	/* DS1307 RTC module */
+	rtc@68 {
+		compatible = "dallas,ds1307";
+		reg = <0x68>;
+	};
+
 };
 
 &i2c2 {
