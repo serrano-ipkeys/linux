@@ -65,7 +65,6 @@
 			>;											
 		};											
 
-
 		rs485_pins: pinmux_rs485_pins {
 			pinctrl-single,pins = <											
 				0x180	0x28	//	RS485, mode=UART1_RXD, mux pin=96, gpio=GPIO0_14 #14, slew=fast,I/O,pull disabled,mode=0
@@ -173,6 +172,10 @@
 	ocp: ocp {
 
 		uart1: serial@44e09000 {
+			status = "okay";
+		};
+
+		uart2: serial@48022000 {
 			status = "okay";
 		};
 
